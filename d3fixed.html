@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3.js Graph with Context Menu</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        #graph-container {
+            width: 90vw;
+            height: 70vh;
+            margin: auto;
+            border: 1px solid #ccc;
+            position: relative;
+        }
+
+        .zoom-buttons,
+        .search-container {
+            margin-top: 10px;
+        }
+
+        .zoom-buttons button,
+        .search-container button {
+            padding: 10px;
+            margin: 5px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .search-container input {
+            padding: 8px;
+            font-size: 14px;
+        }
+
+        .icon {
+            font-size: 24px;
+            cursor: pointer;
+            fill: #0078D4;
+            pointer-events: auto;
+        }
+
+        text {
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        .link {
+            stroke: #aaa;
+            stroke-width: 2px;
+        }
+
+        .highlight {
+            fill: red;
+            font-size: 30px;
+        }
+
+        /* Floating Info Box */
+        .info-box {
+            position: absolute;
+            right: 10px;
+            top: 50px;
+            width: 250px;
+            padding: 15px;
+            background: linear-gradient(135deg, #0078D4, #004E8C);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3);
+            font-size: 14px;
+            text-align: left;
+        }
+
+        .info-box h3 {
+            margin: 0 0 10px;
+            font-size: 18px;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+        }
+
+        .placeholder {
+            text-align: center;
+        }
+
+        .placeholder-icon {
+            font-size: 40px;
+            opacity: 0.6;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        /* Context Menu */
+        .context-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        .context-menu ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .context-menu li {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .context-menu li:hover {
+            background: #0078D4;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>🔗 Right-click a node for options, hover for details!</h2>
+
+    <!-- Search Box -->
+    <div class="search-container">
+        <input type="text" id="searchBox" placeholder="Search for a node...">
+        <button onclick="searchNode()">🔍 Search</button>
+    </div>
+
+    <!-- Graph Container -->
+    <div id="graph-container">
+        <svg id="graph"></svg>
+        <!-- Persistent Info Box -->
+        <div id="info-box" class="info-box">
+            <i class="fas fa-question-circle placeholder-icon"></i>
+            <h3>No object selected</h3>
+            <p class="placeholder-text">Hover over a node to see details</p>
+        </div>
+        <!-- Context Menu -->
+        <div id="context-menu" class="context-menu">
+            <ul>
+                <li onclick="expandSelectedNode()">➕ Expand Node</li>
+                <li onclick="removeSelectedNode()">🗑 Remove Node</li>
+                <li onclick="showDetails()">ℹ Show Details</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="zoom-buttons">
+        <button onclick="zoomIn()">➕ Zoom In</button>
+        <button onclick="zoomOut()">➖ Zoom Out</button>
+        <button onclick="resetZoom()">🔄 Reset Zoom</button>
+        <button onclick="fitToScreen()">📏 Fit to View</button>
+    </div>
+
+    <script>
+        const container = document.getElementById('graph-container');
+        const width = container.clientWidth, height = container.clientHeight;
+        const ICON_RADIUS = 30;
+        let selectedNode = null;
+
+        const faIcons = ["\uf007", "\uf0c0", "\uf19c", "\uf233", "\uf2bb", "\uf3c5", "\uf6d9"];
+        const infoBox = document.getElementById("info-box");
+        const contextMenu = document.getElementById("context-menu");
+
+        const svg = d3.select("#graph")
+            .attr("width", width)
+            .attr("height", height)
+            .call(d3.zoom().on("zoom", zoomed))
+            .append("g");
+
+        const linkLayer = svg.append("g");
+        const nodeLayer = svg.append("g");
+
+        const simulation = d3.forceSimulation()
+            .force("link", d3.forceLink().id(d => d.id).distance(120))
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(width / 2, height / 2));
+
+        let nodes = d3.range(5).map(i => ({ id: `Node ${i}`, icon: randomIcon() }));
+        let links = [];
+
+        function adjustLinePosition(source, target) {
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Calculate offset so that the line stops at the edge of the icon
+            const offsetX = (dx / distance) * ICON_RADIUS;
+            const offsetY = (dy / distance) * ICON_RADIUS;
+
+            return {
+                x1: source.x + offsetX,
+                y1: source.y + offsetY,
+                x2: target.x - offsetX,
+                y2: target.y - offsetY
+            };
+        }
+
+
+        function updateGraph() {
+            const link = linkLayer.selectAll(".link").data(links);
+            link.enter().append("line").attr("class", "link").merge(link);
+            link.exit().remove();
+
+            const node = nodeLayer.selectAll(".node").data(nodes);
+            const nodeEnter = node.enter().append("g").attr("class", "node")
+                .on("mouseover", showInfo)
+                .on("mouseout", resetInfoBox)
+                .on("contextmenu", showContextMenu)
+                .on("click", expandNode); // 🚀 Add left-click event to expand the node
+
+            nodeEnter.append("text")
+                .attr("class", "icon")
+                .attr("text-anchor", "middle")
+                .attr("font-family", "FontAwesome")
+                .attr("font-size", "24px")
+                .text(d => d.icon);
+
+            nodeEnter.merge(node);
+            node.exit().remove();
+
+            simulation.nodes(nodes).on("tick", () => {
+                linkLayer.selectAll(".link")
+                    .attr("x1", d => adjustLinePosition(d.source, d.target).x1)
+                    .attr("y1", d => adjustLinePosition(d.source, d.target).y1)
+                    .attr("x2", d => adjustLinePosition(d.source, d.target).x2)
+                    .attr("y2", d => adjustLinePosition(d.source, d.target).y2);
+
+                nodeLayer.selectAll(".node").attr("transform", d => `translate(${d.x}, ${d.y})`);
+            });
+
+            simulation.force("link").links(links);
+            simulation.alpha(1).restart();
+        }
+
+
+        function showInfo(event, d) {
+            infoBox.innerHTML = `<h3>${d.id}</h3>
+                                 <p><strong>Type:</strong> Server</p>
+                                 <p><strong>Created:</strong> 2023-05-12</p>
+                                 <p><strong>Owner:</strong> Admin</p>`;
+        }
+
+        function resetInfoBox() {
+            infoBox.innerHTML = `<i class="fas fa-question-circle placeholder-icon"></i>
+                                 <h3>No object selected</h3>
+                                 <p class="placeholder-text">Hover over a node to see details</p>`;
+        }
+
+        function expandSelectedNode() { expandNode(selectedNode); }
+        
+        function expandNode(event, clickedNode) {
+            event.stopPropagation(); // Prevent event bubbling
+
+            // Create 3 new child nodes
+            const newNodes = d3.range(3).map(i => ({
+                id: `${clickedNode.id}.${i}`,
+                icon: randomIcon()
+            }));
+
+            nodes.push(...newNodes);
+            newNodes.forEach(n => links.push({ source: clickedNode, target: n }));
+
+            updateGraph();
+        }
+
+        function zoomed({ transform }) {
+            svg.attr("transform", transform);
+        }
+
+        function showContextMenu(event, d) {
+            event.preventDefault(); // Prevent the default browser context menu
+            selectedNode = d; // Store the selected node
+
+            // Position the context menu near the cursor
+            contextMenu.style.top = `${event.pageY}px`;
+            contextMenu.style.left = `${event.pageX}px`;
+            contextMenu.style.display = "block";
+        }
+
+
+        function randomIcon() { return faIcons[Math.floor(Math.random() * faIcons.length)]; }
+
+        document.body.addEventListener("click", () => contextMenu.style.display = "none");
+
+        updateGraph();
+    </script>
+</body>
+
+</html>
