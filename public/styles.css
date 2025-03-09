@@ -1,0 +1,84 @@
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
+
+#graph-container {
+    width: 90vw;
+    height: 70vh;
+    margin: auto;
+    border: 1px solid #ccc;
+    position: relative;
+}
+
+.search-container input {
+    padding: 8px;
+    font-size: 14px;
+}
+
+.icon {
+    font-size: 24px;
+    cursor: pointer;
+    fill: #0078D4;
+    pointer-events: auto;
+}
+
+text {
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.link {
+    stroke: #aaa;
+    stroke-width: 2px;
+}
+
+.highlight {
+    fill: red;
+    font-size: 30px;
+}
+
+.zoom-buttons,
+.search-container {
+    margin-top: 10px;
+}
+
+.zoom-buttons button,
+.search-container button {
+    padding: 10px;
+    margin: 5px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.info-box {
+    position: absolute;
+    right: 10px;
+    top: 50px;
+    width: 250px;
+    padding: 15px;
+    background: linear-gradient(135deg, #0078D4, #004E8C);
+    color: white;
+    border-radius: 10px;
+    box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3);
+    font-size: 14px;
+    text-align: left;
+}
+
+.context-menu {
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    display: none;
+    z-index: 1000;
+    padding: 5px;
+    border-radius: 5px;
+}
+
+.selected text {
+    fill: gold;  /* Change icon color */
+    font-size: 28px;  /* Make it slightly bigger */
+    stroke: black;
+    stroke-width: 1px;
+}
